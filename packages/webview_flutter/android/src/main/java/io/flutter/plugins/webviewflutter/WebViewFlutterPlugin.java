@@ -9,12 +9,20 @@ import io.flutter.plugin.common.PluginRegistry.Registrar;
 /** WebViewFlutterPlugin */
 public class WebViewFlutterPlugin {
   /** Plugin registration. */
-  public static void registerWith(Registrar registrar) {
+  public static void registerWith(final Registrar registrar) {
+    ActivityRegistar activityRegistar =
+            new ActivityRegistar(new WeakActivityProvider(registrar.activity()));
+
+    WebViewFactory factory =
+            new WebViewFactory(activityRegistar, registrar.messenger(), registrar.view());
+
     registrar
         .platformViewRegistry()
         .registerViewFactory(
-            "plugins.flutter.io/webview",
-            new WebViewFactory(registrar.messenger(), registrar.view()));
+            "plugins.flutter.io/webview", factory);
+    registrar.addActivityResultListener(activityRegistar);
+
     FlutterCookieManager.registerWith(registrar.messenger());
   }
+
 }

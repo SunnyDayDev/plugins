@@ -15,17 +15,19 @@ import java.util.Map;
 public final class WebViewFactory extends PlatformViewFactory {
   private final BinaryMessenger messenger;
   private final View containerView;
+  private final ActivityRegistar activityRegistar;
 
-  WebViewFactory(BinaryMessenger messenger, View containerView) {
+  WebViewFactory(ActivityRegistar activityRegistar, BinaryMessenger messenger, View containerView) {
     super(StandardMessageCodec.INSTANCE);
     this.messenger = messenger;
     this.containerView = containerView;
+    this.activityRegistar = activityRegistar;
   }
 
   @SuppressWarnings("unchecked")
   @Override
   public PlatformView create(Context context, int id, Object args) {
     Map<String, Object> params = (Map<String, Object>) args;
-    return new FlutterWebView(context, messenger, id, params, containerView);
+    return new FlutterWebView(activityRegistar, context, messenger, id, params, containerView);
   }
 }

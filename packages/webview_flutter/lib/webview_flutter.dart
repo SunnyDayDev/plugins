@@ -14,6 +14,8 @@ import 'src/webview_cupertino.dart';
 
 typedef void WebViewCreatedCallback(WebViewController controller);
 
+typedef void OnShowAlertCallback(String message);
+
 enum JavascriptMode {
   /// JavaScript execution is disabled.
   disabled,
@@ -134,6 +136,7 @@ class WebView extends StatefulWidget {
     Key key,
     this.onWebViewCreated,
     this.initialUrl,
+    this.onShowAlert,
     this.javascriptMode = JavascriptMode.disabled,
     this.javascriptChannels,
     this.navigationDelegate,
@@ -182,6 +185,10 @@ class WebView extends StatefulWidget {
 
   /// If not null invoked once the web view is created.
   final WebViewCreatedCallback onWebViewCreated;
+
+
+  /// If not null invoked once the web view is created.
+  final OnShowAlertCallback onShowAlert;
 
   /// Which gestures should be consumed by the web view.
   ///
@@ -463,6 +470,14 @@ class _PlatformCallbacksHandler implements WebViewPlatformCallbacksHandler {
       _javascriptChannels[channel.name] = channel;
     }
   }
+
+  @override
+  void onShowAlert(String message) {
+    if (_widget.onShowAlert != null) {
+      _widget.onShowAlert(message);
+    }
+  }
+
 }
 
 /// Controls a [WebView].

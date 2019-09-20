@@ -28,15 +28,20 @@ public class FlutterWebView implements PlatformView, MethodCallHandler {
   private final MethodChannel methodChannel;
   private final FlutterWebViewClient flutterWebViewClient;
   private final Handler platformThreadHandler;
+  private final FlutterWebViewChromeClient flutterWebViewChromeClient;
+  private final ActivityRegistar activityRegistar;
 
   @TargetApi(Build.VERSION_CODES.JELLY_BEAN_MR1)
   @SuppressWarnings("unchecked")
   FlutterWebView(
+      final ActivityRegistar activityRegistar,
       final Context context,
       BinaryMessenger messenger,
       int id,
       Map<String, Object> params,
       final View containerView) {
+
+    this.activityRegistar = activityRegistar;
 
     DisplayListenerProxy displayListenerProxy = new DisplayListenerProxy();
     DisplayManager displayManager =
@@ -68,6 +73,11 @@ public class FlutterWebView implements PlatformView, MethodCallHandler {
       String url = (String) params.get("initialUrl");
       webView.loadUrl(url);
     }
+
+    flutterWebViewChromeClient = new FlutterWebViewChromeClient(activityRegistar, methodChannel);
+    webView.setWebChromeClient(flutterWebViewChromeClient);
+    activityRegistar.addActivityResultListener(flutterWebViewChromeClient);
+
   }
 
   @Override
@@ -297,5 +307,6 @@ public class FlutterWebView implements PlatformView, MethodCallHandler {
     methodChannel.setMethodCallHandler(null);
     webView.dispose();
     webView.destroy();
+    activityRegistar.removeActivityResultListener(flutterWebViewChromeClient);
   }
 }

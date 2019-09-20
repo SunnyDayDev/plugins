@@ -25,6 +25,9 @@ abstract class WebViewPlatformCallbacksHandler {
 
   /// Invoked by [WebViewPlatformController] when a page has finished loading.
   void onPageFinished(String url);
+
+  /// Invoked by [WebViewPlatformController] when a js requested show alert.
+  void onShowAlert(String message);
 }
 
 /// Interface for talking to the webview's platform implementation.
