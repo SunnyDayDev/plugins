@@ -248,9 +248,12 @@ class SampleMenu extends StatelessWidget {
 
   void _onNavigationDelegateExample(
       WebViewController controller, BuildContext context) async {
-    final String contentBase64 =
-        base64Encode(const Utf8Encoder().convert(kNavigationExamplePage));
-    controller.loadUrl('data:text/html;base64,$contentBase64');
+    controller.loadData(
+        html: kNavigationExamplePage,
+        baseUrl: "https://test.com",
+        mimeType: "text/html",
+        encoding: "utf-8"
+    );
   }
 
   Widget _getCookieList(String cookies) {

@@ -28,9 +28,8 @@ final class InputAwareWebView extends WebView {
   private ThreadedInputConnectionProxyAdapterView proxyAdapterView;
   private View containerView;
 
-  InputAwareWebView(Context context, View containerView) {
+  InputAwareWebView(Context context) {
     super(context);
-    this.containerView = containerView;
   }
 
   void setContainerView(View containerView) {

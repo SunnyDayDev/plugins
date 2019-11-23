@@ -3,30 +3,32 @@ package io.flutter.plugins.webviewflutter;
 import android.app.Activity;
 import android.content.Intent;
 
+import androidx.annotation.Nullable;
+
 import java.util.HashSet;
 import java.util.Set;
 
 import io.flutter.plugin.common.PluginRegistry;
 
-class ActivityRegistar implements PluginRegistry.ActivityResultListener {
+class ActivityWrapper implements PluginRegistry.ActivityResultListener {
 
-    private final ActivityProvider activityProvider;
+    private final ActivityProvider provider;
 
     private final Set<PluginRegistry.ActivityResultListener> resultListeners = new HashSet<>();
 
-    ActivityRegistar(ActivityProvider activityProvider) {
-        this.activityProvider = activityProvider;
+    ActivityWrapper(ActivityProvider registar) {
+        this.provider = registar;
     }
 
     Activity activity() {
-        return activityProvider.activity();
+        return provider.getActivity();
     }
 
-    public void addActivityResultListener(PluginRegistry.ActivityResultListener listener) {
+    void addActivityResultListener(PluginRegistry.ActivityResultListener listener) {
         resultListeners.add(listener);
     }
 
-    public void removeActivityResultListener(PluginRegistry.ActivityResultListener listener) {
+    void removeActivityResultListener(PluginRegistry.ActivityResultListener listener) {
         resultListeners.remove(listener);
     }
 
@@ -41,7 +43,7 @@ class ActivityRegistar implements PluginRegistry.ActivityResultListener {
 
     interface ActivityProvider {
 
-        Activity activity();
+        @Nullable Activity getActivity();
 
     }
 

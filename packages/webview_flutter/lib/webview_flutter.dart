@@ -512,12 +512,27 @@ class WebViewController {
   ///
   /// Throws an ArgumentError if `url` is not a valid URL string.
   Future<void> loadUrl(
-    String url, {
-    Map<String, String> headers,
-  }) async {
+      String url, {
+        Map<String, String> headers,
+      }) async {
     assert(url != null);
     _validateUrlString(url);
     return _webViewPlatformController.loadUrl(url, headers);
+  }
+
+  Future<void> loadData({
+    @required String html,
+    String baseUrl,
+    String mimeType,
+    String encoding
+  }) async {
+    assert(html != null);
+    return _webViewPlatformController.loadData(
+      html: html,
+      baseUrl: baseUrl,
+      mimeType: mimeType,
+      encoding: encoding
+    );
   }
 
   /// Accessor to the current URL that the WebView is displaying.

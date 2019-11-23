@@ -29,25 +29,24 @@ public class FlutterWebView implements PlatformView, MethodCallHandler {
   private final FlutterWebViewClient flutterWebViewClient;
   private final Handler platformThreadHandler;
   private final FlutterWebViewChromeClient flutterWebViewChromeClient;
-  private final ActivityRegistar activityRegistar;
+  private final ActivityWrapper activityProvider;
 
   @TargetApi(Build.VERSION_CODES.JELLY_BEAN_MR1)
   @SuppressWarnings("unchecked")
   FlutterWebView(
-      final ActivityRegistar activityRegistar,
+      final ActivityWrapper activityWrapper,
       final Context context,
       BinaryMessenger messenger,
       int id,
-      Map<String, Object> params,
-      View containerView) {
+      Map<String, Object> params) {
 
-    this.activityRegistar = activityRegistar;
+    this.activityProvider = activityWrapper;
 
     DisplayListenerProxy displayListenerProxy = new DisplayListenerProxy();
     DisplayManager displayManager =
         (DisplayManager) context.getSystemService(Context.DISPLAY_SERVICE);
     displayListenerProxy.onPreWebViewInitialization(displayManager);
-    webView = new InputAwareWebView(containerView.getContext(), containerView);
+    webView = new InputAwareWebView(context);
     displayListenerProxy.onPostWebViewInitialization(displayManager);
 
     platformThreadHandler = new Handler(context.getMainLooper());
@@ -74,9 +73,9 @@ public class FlutterWebView implements PlatformView, MethodCallHandler {
       webView.loadUrl(url);
     }
 
-    flutterWebViewChromeClient = new FlutterWebViewChromeClient(activityRegistar, methodChannel);
+    flutterWebViewChromeClient = new FlutterWebViewChromeClient(activityWrapper, methodChannel);
     webView.setWebChromeClient(flutterWebViewChromeClient);
-    activityRegistar.addActivityResultListener(flutterWebViewChromeClient);
+    activityWrapper.addActivityResultListener(flutterWebViewChromeClient);
 
   }
 
@@ -131,6 +130,9 @@ public class FlutterWebView implements PlatformView, MethodCallHandler {
       case "loadUrl":
         loadUrl(methodCall, result);
         break;
+      case "loadData":
+        loadData(methodCall, result);
+        break;
       case "updateSettings":
         updateSettings(methodCall, result);
         break;
@@ -173,14 +175,29 @@ public class FlutterWebView implements PlatformView, MethodCallHandler {
   }
 
   @SuppressWarnings("unchecked")
-  private void loadUrl(MethodCall methodCall, Result result) {
+  private void loadUrl(MethodCall methodCall, final Result result) {
     Map<String, Object> request = (Map<String, Object>) methodCall.arguments;
-    String url = (String) request.get("url");
-    Map<String, String> headers = (Map<String, String>) request.get("headers");
-    if (headers == null) {
-      headers = Collections.emptyMap();
-    }
+    final String url = (String) request.get("url");
+    final Map<String, String> headers = request.get("headers") != null
+            ? (Map<String, String>) request.get("headers")
+            : Collections.<String, String>emptyMap();
+
     webView.loadUrl(url, headers);
+    result.success(null);
+  }
+
+  @SuppressWarnings("unchecked")
+  private void loadData(MethodCall methodCall, Result result) {
+    Map<String, Object> request = (Map<String, Object>) methodCall.arguments;
+    String data = (String) request.get("data");
+    String baseUrl = (String) request.get("baseUrl");
+    String mimeType = (String) request.get("mimeType");
+    String encoding = (String) request.get("encoding");
+    if (baseUrl != null) {
+      webView.loadData(data, mimeType, encoding);
+    } else {
+      webView.loadDataWithBaseURL(null, data, mimeType, encoding, null);
+    }
     result.success(null);
   }
 
@@ -327,6 +344,6 @@ public class FlutterWebView implements PlatformView, MethodCallHandler {
     methodChannel.setMethodCallHandler(null);
     webView.dispose();
     webView.destroy();
-    activityRegistar.removeActivityResultListener(flutterWebViewChromeClient);
+    activityProvider.removeActivityResultListener(flutterWebViewChromeClient);
   }
 }

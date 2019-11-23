@@ -1,9 +1,7 @@
 package io.flutter.plugins.webviewflutter;
 
 import android.app.Activity;
-import android.app.AlertDialog;
 import android.content.ActivityNotFoundException;
-import android.content.DialogInterface;
 import android.content.Intent;
 import android.net.Uri;
 import android.os.Build;
@@ -23,13 +21,13 @@ import io.flutter.plugin.common.PluginRegistry;
 
 class FlutterWebViewChromeClient extends WebChromeClient implements PluginRegistry.ActivityResultListener {
 
-    private final ActivityRegistar activityRegistar;
+    private final ActivityWrapper activityWrapper;
     private final MethodChannel methodChannel;
 
     private FileChooserResultListener activeRequest;
 
-    FlutterWebViewChromeClient(ActivityRegistar activityRegistar, MethodChannel methodChannel) {
-        this.activityRegistar = activityRegistar;
+    FlutterWebViewChromeClient(ActivityWrapper activityWrapper, MethodChannel methodChannel) {
+        this.activityWrapper = activityWrapper;
         this.methodChannel = methodChannel;
     }
 
@@ -51,7 +49,9 @@ class FlutterWebViewChromeClient extends WebChromeClient implements PluginRegist
 
         cancelCurrentRequest();
 
-        Activity activity = activityRegistar.activity();
+        Activity activity = activityWrapper.activity();
+
+        if (activity == null) return false;
 
         activeRequest = new FileChooserResultListener() {
             @Override

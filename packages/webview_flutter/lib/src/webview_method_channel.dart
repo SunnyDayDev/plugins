@@ -4,6 +4,7 @@
 
 import 'dart:async';
 
+import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../platform_interface.dart';
@@ -54,6 +55,22 @@ class MethodChannelWebViewPlatform implements WebViewPlatformController {
     return _channel.invokeMethod<void>('loadUrl', <String, dynamic>{
       'url': url,
       'headers': headers,
+    });
+  }
+
+  @override
+  Future<void> loadData({
+    @required String html,
+    String baseUrl,
+    String mimeType,
+    String encoding
+  }) {
+    assert(html != null);
+    return _channel.invokeMethod<void>('loadData', <String, dynamic>{
+      'data': html,
+      'baseUrl': baseUrl,
+      'mimeType': mimeType,
+      'encodinng': encoding
     });
   }
 

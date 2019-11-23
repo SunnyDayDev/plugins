@@ -5,7 +5,6 @@
 package io.flutter.plugins.webviewflutter;
 
 import android.content.Context;
-import android.view.View;
 import io.flutter.plugin.common.BinaryMessenger;
 import io.flutter.plugin.common.StandardMessageCodec;
 import io.flutter.plugin.platform.PlatformView;
@@ -14,20 +13,18 @@ import java.util.Map;
 
 public final class WebViewFactory extends PlatformViewFactory {
   private final BinaryMessenger messenger;
-  private final View containerView;
-  private final ActivityRegistar activityRegistar;
+  private final ActivityWrapper activityProvider;
 
-  WebViewFactory(ActivityRegistar activityRegistar, BinaryMessenger messenger, View containerView) {
+  WebViewFactory(ActivityWrapper activityWrapper, BinaryMessenger messenger) {
     super(StandardMessageCodec.INSTANCE);
     this.messenger = messenger;
-    this.containerView = containerView;
-    this.activityRegistar = activityRegistar;
+    this.activityProvider = activityWrapper;
   }
 
   @SuppressWarnings("unchecked")
   @Override
   public PlatformView create(Context context, int id, Object args) {
     Map<String, Object> params = (Map<String, Object>) args;
-    return new FlutterWebView(activityRegistar, context, messenger, id, params, containerView);
+    return new FlutterWebView(activityProvider, context, messenger, id, params);
   }
 }
