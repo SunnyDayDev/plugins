@@ -1,3 +1,30 @@
+## 0.5.4+6
+
+* Add missing documentation and a lint to prevent further undocumented APIs.
+
+## 0.5.4+5
+
+* Update and migrate iOS example project by removing flutter_assets, change
+  "English" to "en", remove extraneous xcconfigs and framework outputs,
+  update to Xcode 11 build settings, and remove ARCHS.
+
+## 0.5.4+4
+
+* `setMockInitialValues` needs to handle non-prefixed keys since that's an implementation detail.
+
+## 0.5.4+3
+
+* Android: Suppress casting warnings.
+
+## 0.5.4+2
+
+* Remove AndroidX warnings.
+
+## 0.5.4+1
+
+* Include lifecycle dependency as a compileOnly one on Android to resolve
+  potential version conflicts with other transitive libraries.
+
 ## 0.5.4
 
 * Support the v2 Android embedding.

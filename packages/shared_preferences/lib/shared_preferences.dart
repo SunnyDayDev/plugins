@@ -19,6 +19,11 @@ class SharedPreferences {
 
   static const String _prefix = 'flutter.';
   static Completer<SharedPreferences> _completer;
+
+  /// Loads and parses the [SharedPreferences] for this app from disk.
+  ///
+  /// Because this is reading from disk, it shouldn't be awaited in
+  /// performance-sensitive blocks.
   static Future<SharedPreferences> getInstance() async {
     if (_completer == null) {
       _completer = Completer<SharedPreferences>();
@@ -181,9 +186,17 @@ class SharedPreferences {
   /// If the singleton instance has been initialized already, it is nullified.
   @visibleForTesting
   static void setMockInitialValues(Map<String, dynamic> values) {
+    final Map<String, dynamic> newValues =
+        values.map<String, dynamic>((String key, dynamic value) {
+      String newKey = key;
+      if (!key.startsWith(_prefix)) {
+        newKey = '$_prefix$key';
+      }
+      return MapEntry<String, dynamic>(newKey, value);
+    });
     _kChannel.setMockMethodCallHandler((MethodCall methodCall) async {
       if (methodCall.method == 'getAll') {
-        return values;
+        return newValues;
       }
       return null;
     });
