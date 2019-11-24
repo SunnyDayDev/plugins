@@ -114,6 +114,7 @@ enum MenuOptions {
   listCache,
   clearCache,
   navigationDelegate,
+  setCookie
 }
 
 class SampleMenu extends StatelessWidget {
@@ -149,6 +150,9 @@ class SampleMenu extends StatelessWidget {
               case MenuOptions.clearCache:
                 _onClearCache(controller.data, context);
                 break;
+              case MenuOptions.setCookie:
+                _onSetCookie(context);
+                break;
               case MenuOptions.navigationDelegate:
                 _onNavigationDelegateExample(controller.data, context);
                 break;
@@ -183,6 +187,10 @@ class SampleMenu extends StatelessWidget {
             const PopupMenuItem<MenuOptions>(
               value: MenuOptions.navigationDelegate,
               child: Text('Navigation Delegate example'),
+            ),
+            const PopupMenuItem<MenuOptions>(
+              value: MenuOptions.setCookie,
+              child: Text('Set cookie'),
             ),
           ],
         );
@@ -233,6 +241,53 @@ class SampleMenu extends StatelessWidget {
     Scaffold.of(context).showSnackBar(const SnackBar(
       content: Text("Cache cleared."),
     ));
+  }
+
+  void _onSetCookie(BuildContext context) async {
+    final TextEditingController domainTextController = TextEditingController(text: "");
+    final TextEditingController cookieTextController = TextEditingController(text: "");
+
+    await showDialog<void>(
+      context: context,
+      builder: (_) => AlertDialog(
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            TextField(
+              keyboardType: TextInputType.url,
+              decoration: const InputDecoration(
+                labelText: "Domain"
+              ),
+              controller: domainTextController,
+            ),
+            TextField(
+              decoration: const InputDecoration(
+                  labelText: "Cookie"
+              ),
+              controller: cookieTextController,
+            )
+          ],
+        ),
+        actions: <Widget>[
+          RaisedButton(
+            onPressed: () {
+              _setCookie(domainTextController.text, cookieTextController.text, context);
+              Navigator.pop(context);
+            },
+            child: const Text("APPLY"),
+          )
+        ],
+      )
+    );
+  }
+
+  void _setCookie(String domain, String cookie, BuildContext context) async {
+    final bool isCookieSetted = await cookieManager.setCookie(domain, cookie);
+    if (!isCookieSetted) {
+      Scaffold.of(context).showSnackBar(const SnackBar(
+        content: Text("Cookie was not setted."),
+      ));
+    }
   }
 
   void _onClearCookies(BuildContext context) async {

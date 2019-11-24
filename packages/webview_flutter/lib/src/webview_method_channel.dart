@@ -132,6 +132,16 @@ class MethodChannelWebViewPlatform implements WebViewPlatformController {
         .then<bool>((dynamic result) => result);
   }
 
+  /// Method channel implementation for [WebViewPlatform.clearCookies].
+  static Future<bool> setCookie(String domain, String cookie) {
+    return _cookieManagerChannel
+        .invokeMethod<bool>('setCookie', <String, dynamic>{
+          'domain': domain,
+          'cookie': cookie
+        })
+        .then<bool>((dynamic result) => result);
+  }
+
   static Map<String, dynamic> _webSettingsToMap(WebSettings settings) {
     final Map<String, dynamic> map = <String, dynamic>{};
     void _addIfNonNull(String key, dynamic value) {

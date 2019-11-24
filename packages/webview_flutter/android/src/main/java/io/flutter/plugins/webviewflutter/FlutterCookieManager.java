@@ -8,6 +8,9 @@ import android.os.Build;
 import android.os.Build.VERSION_CODES;
 import android.webkit.CookieManager;
 import android.webkit.ValueCallback;
+
+import androidx.annotation.NonNull;
+
 import io.flutter.plugin.common.BinaryMessenger;
 import io.flutter.plugin.common.MethodCall;
 import io.flutter.plugin.common.MethodChannel;
@@ -23,10 +26,13 @@ class FlutterCookieManager implements MethodCallHandler {
   }
 
   @Override
-  public void onMethodCall(MethodCall methodCall, Result result) {
+  public void onMethodCall(MethodCall methodCall, @NonNull  Result result) {
     switch (methodCall.method) {
       case "clearCookies":
         clearCookies(result);
+        break;
+      case "setCookie":
+        setCookie(methodCall, result);
         break;
       default:
         result.notImplemented();
@@ -51,6 +57,24 @@ class FlutterCookieManager implements MethodCallHandler {
     } else {
       cookieManager.removeAllCookie();
       result.success(hasCookies);
+    }
+  }
+
+  private static void setCookie(final MethodCall methodCall, final Result result) {
+    CookieManager cookieManager = CookieManager.getInstance();
+    String domain = methodCall.argument("domain");
+    String cookie = methodCall.argument("cookie");
+
+    if (Build.VERSION.SDK_INT >= VERSION_CODES.LOLLIPOP) {
+      cookieManager.setCookie(domain, cookie, new ValueCallback<Boolean>() {
+        @Override
+        public void onReceiveValue(Boolean cookieResult) {
+          result.success(cookieResult);
+        }
+      });
+    } else {
+      cookieManager.setCookie(domain, cookie);
+      result.success(true);
     }
   }
 }
