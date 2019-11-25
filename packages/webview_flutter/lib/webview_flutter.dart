@@ -3,6 +3,7 @@
 // found in the LICENSE file.
 
 import 'dart:async';
+import 'dart:typed_data';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
@@ -96,6 +97,27 @@ enum AutoMediaPlaybackPolicy {
 
 final RegExp _validChannelNames = RegExp('^[a-zA-Z_][a-zA-Z0-9_]*\$');
 
+@immutable
+class WebResourceRequest {
+  WebResourceRequest(this.url, this.method, this.headers);
+  
+  final String url;
+  final String method;
+  final Map<String, String> headers;
+}
+
+@immutable
+class WebResourceResponse {
+  WebResourceResponse(this.statusCode, this.reasonPhrase, this.headers, this.body);
+
+  final int statusCode;
+  final String reasonPhrase;
+  final Map<String, String> headers;
+  final Uint8List body;
+}
+
+typedef Future<WebResourceResponse> WebResourceRequestInterceptor(WebResourceRequest request);
+
 /// A named channel for receiving messaged from JavaScript code running inside a web view.
 class JavascriptChannel {
   /// Constructs a Javascript channel.
@@ -147,6 +169,7 @@ class WebView extends StatefulWidget {
     this.userAgent,
     this.initialMediaPlaybackPolicy =
         AutoMediaPlaybackPolicy.require_user_action_for_all_media_types,
+    this.interceptRequest
   })  : assert(javascriptMode != null),
         assert(initialMediaPlaybackPolicy != null),
         super(key: key);
@@ -307,6 +330,8 @@ class WebView extends StatefulWidget {
   ///
   /// The default policy is [AutoMediaPlaybackPolicy.require_user_action_for_all_media_types].
   final AutoMediaPlaybackPolicy initialMediaPlaybackPolicy;
+  
+  final WebResourceRequestInterceptor interceptRequest;
 
   @override
   State<StatefulWidget> createState() => _WebViewState();
@@ -325,7 +350,7 @@ class _WebViewState extends State<WebView> {
       onWebViewPlatformCreated: _onWebViewPlatformCreated,
       webViewPlatformCallbacksHandler: _platformCallbacksHandler,
       gestureRecognizers: widget.gestureRecognizers,
-      creationParams: _creationParamsfromWidget(widget),
+      creationParams: _creationParamsfromWidget(widget)
     );
   }
 
@@ -381,6 +406,7 @@ WebSettings _webSettingsFromWidget(WebView widget) {
     hasNavigationDelegate: widget.navigationDelegate != null,
     debuggingEnabled: widget.debuggingEnabled,
     userAgent: WebSetting<String>.of(widget.userAgent),
+    hasInterceptRequestDelegate: widget.interceptRequest != null
   );
 }
 
@@ -398,6 +424,7 @@ WebSettings _clearUnchangedWebSettings(
 
   JavascriptMode javascriptMode;
   bool hasNavigationDelegate;
+  bool hasInterceptRequestDelegate;
   bool debuggingEnabled;
   WebSetting<String> userAgent = WebSetting<String>.absent();
   if (currentValue.javascriptMode != newValue.javascriptMode) {
@@ -412,12 +439,16 @@ WebSettings _clearUnchangedWebSettings(
   if (currentValue.userAgent != newValue.userAgent) {
     userAgent = newValue.userAgent;
   }
+  if (currentValue.hasInterceptRequestDelegate != newValue.hasInterceptRequestDelegate) {
+    hasInterceptRequestDelegate = newValue.hasNavigationDelegate;
+  }
 
   return WebSettings(
     javascriptMode: javascriptMode,
     hasNavigationDelegate: hasNavigationDelegate,
     debuggingEnabled: debuggingEnabled,
     userAgent: userAgent,
+    hasInterceptRequestDelegate: hasInterceptRequestDelegate
   );
 }
 
@@ -478,6 +509,15 @@ class _PlatformCallbacksHandler implements WebViewPlatformCallbacksHandler {
     if (_widget.onShowAlert != null) {
       _widget.onShowAlert(message);
     }
+  }
+
+  @override
+  Future<WebResourceResponse> interceptRequest(WebResourceRequest request) {
+    final WebResourceRequestInterceptor interceptor = _widget.interceptRequest;
+    if (interceptor == null) {
+      return null;
+    }
+    return interceptor(request);
   }
 
 }

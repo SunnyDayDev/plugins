@@ -6,6 +6,8 @@ package io.flutter.plugins.webviewflutter;
 
 import android.annotation.TargetApi;
 import android.os.Build;
+import android.os.Handler;
+import android.os.Looper;
 import android.util.Log;
 import android.view.KeyEvent;
 import android.webkit.WebResourceRequest;
@@ -14,10 +16,20 @@ import android.webkit.WebView;
 import android.webkit.WebViewClient;
 
 import androidx.annotation.Nullable;
+import androidx.annotation.RequiresApi;
 import androidx.webkit.WebViewClientCompat;
 import io.flutter.plugin.common.MethodChannel;
+
+import java.io.BufferedInputStream;
+import java.io.ByteArrayInputStream;
+import java.io.DataInputStream;
+import java.io.StringBufferInputStream;
+import java.io.StringReader;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.Semaphore;
+import java.util.concurrent.atomic.AtomicReference;
 
 // We need to use WebViewClientCompat to get
 // shouldOverrideUrlLoading(WebView view, WebResourceRequest request)
@@ -27,6 +39,7 @@ class FlutterWebViewClient {
   private static final String TAG = "FlutterWebViewClient";
   private final MethodChannel methodChannel;
   private boolean hasNavigationDelegate;
+  private boolean hasInterceptRequestDelegate;
 
   FlutterWebViewClient(MethodChannel methodChannel) {
     this.methodChannel = methodChannel;
@@ -34,7 +47,6 @@ class FlutterWebViewClient {
 
   @TargetApi(Build.VERSION_CODES.LOLLIPOP)
   private boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
-    Map<String, String> headers = request.getRequestHeaders();
     if (!hasNavigationDelegate) {
       return false;
     }
@@ -69,6 +81,100 @@ class FlutterWebViewClient {
     notifyOnNavigationRequest(url, null, view, true);
     return true;
   }
+  
+  
+  @Nullable
+  @TargetApi(Build.VERSION_CODES.LOLLIPOP)
+  private WebResourceResponse shouldInterceptRequest(
+      WebView view, final WebResourceRequest request) {
+    if (!hasInterceptRequestDelegate) {
+      return null;
+    }
+  
+    final HashMap<String, Object> args = new HashMap<>();
+    args.put("url", request.getUrl().toString());
+    args.put("method", request.getMethod());
+    args.put("headers", request.getRequestHeaders());
+
+    final AtomicReference<WebResourceResponse> responseReference = new AtomicReference<>(null);
+    final Semaphore sema = new Semaphore(0);
+    
+    view.post(new Runnable() {
+      @Override
+      public void run() {
+        
+        methodChannel.invokeMethod("interceptRequest", args, new MethodChannel.Result() {
+          @Override
+          public void success(Object result) {
+            if (result != null) {
+              WebResourceResponse response = parseWebResourceResponse((Map<String, Object>) result);
+              responseReference.set(response);
+            }
+      
+            sema.release();
+          }
+    
+          @Override
+          public void error(String errorCode, String errorMessage, Object errorDetails) {
+            sema.release();
+          }
+    
+          @Override
+          public void notImplemented() {
+            sema.release();
+          }
+        });
+
+      }
+    });
+    
+    try {
+      sema.acquire();
+    } catch (InterruptedException e) {
+      e.printStackTrace();
+    }
+
+    return responseReference.get();
+  }
+  
+  @RequiresApi(api = Build.VERSION_CODES.LOLLIPOP)
+  private WebResourceResponse parseWebResourceResponse(Map<String, Object> result) {
+    int statusCode = (int) result.get("statusCode");
+    String reasonPhrase = (String) result.get("reasonPhrase");
+    if (reasonPhrase == null) {
+      reasonPhrase = "Unspecified";
+    }
+    Map<String, String> headers = (Map<String, String>) result.get("headers");
+    if (headers == null) {
+      headers = Collections.emptyMap();
+    }
+    byte[] body = (byte[]) result.get("body");
+    if (body == null) {
+      body = new byte[0];
+    }
+  
+    String mimeType = "*/*";
+    String encoding = "utf-8";
+    String contentTypeHeader = headers.get("Content-Type");
+    if (contentTypeHeader == null) {
+      contentTypeHeader = headers.get("content-type");
+    }
+    if (contentTypeHeader != null) {
+      String[] contentTypeItems = contentTypeHeader.split(";");
+      mimeType  = contentTypeItems[0];
+      for (String item :contentTypeItems) {
+        String[] itemValueParts = item.trim().split("=");
+        if (itemValueParts[0].toLowerCase().equals("charset")) {
+          encoding = itemValueParts[1];
+        }
+      }
+    }
+  
+    return new WebResourceResponse(
+        mimeType, encoding, statusCode, reasonPhrase, headers,
+        new ByteArrayInputStream(body)
+    );
+  }
 
   private void onPageFinished(WebView view, String url) {
     Map<String, Object> args = new HashMap<>();
@@ -92,8 +198,12 @@ class FlutterWebViewClient {
   // This method attempts to avoid using WebViewClientCompat due to bug
   // https://bugs.chromium.org/p/chromium/issues/detail?id=925887. Also, see
   // https://github.com/flutter/flutter/issues/29446.
-  WebViewClient createWebViewClient(boolean hasNavigationDelegate) {
+  WebViewClient createWebViewClient(
+      boolean hasNavigationDelegate,
+      boolean hasInterceptRequestDelegate
+  ) {
     this.hasNavigationDelegate = hasNavigationDelegate;
+    this.hasInterceptRequestDelegate  = hasInterceptRequestDelegate;
 
     if (!hasNavigationDelegate || android.os.Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
       return internalCreateWebViewClient();
@@ -120,6 +230,12 @@ class FlutterWebViewClient {
         // Deliberately empty. Occasionally the webview will mark events as having failed to be
         // handled even though they were handled. We don't want to propagate those as they're not
         // truly lost.
+      }
+  
+      @Nullable
+      @Override
+      public WebResourceResponse shouldInterceptRequest(WebView view, WebResourceRequest request) {
+        return FlutterWebViewClient.this.shouldInterceptRequest(view, request);
       }
     };
   }

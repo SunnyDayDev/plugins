@@ -8,6 +8,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
+import 'package:webview_flutter/webview_flutter.dart';
 
 import '../platform_interface.dart';
 import 'webview_method_channel.dart';
@@ -24,7 +25,7 @@ class CupertinoWebView implements WebViewPlatform {
     CreationParams creationParams,
     @required WebViewPlatformCallbacksHandler webViewPlatformCallbacksHandler,
     WebViewPlatformCreatedCallback onWebViewPlatformCreated,
-    Set<Factory<OneSequenceGestureRecognizer>> gestureRecognizers,
+    Set<Factory<OneSequenceGestureRecognizer>> gestureRecognizers
   }) {
     return UiKitView(
       viewType: 'plugins.flutter.io/webview',

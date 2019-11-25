@@ -28,6 +28,8 @@ abstract class WebViewPlatformCallbacksHandler {
 
   /// Invoked by [WebViewPlatformController] when a js requested show alert.
   void onShowAlert(String message);
+
+  Future<WebResourceResponse> interceptRequest(WebResourceRequest request);
 }
 
 /// Interface for talking to the webview's platform implementation.
@@ -238,6 +240,7 @@ class WebSettings {
     this.hasNavigationDelegate,
     this.debuggingEnabled,
     @required this.userAgent,
+    this.hasInterceptRequestDelegate
   }) : assert(userAgent != null);
 
   /// The JavaScript execution mode to be used by the webview.
@@ -250,6 +253,8 @@ class WebSettings {
   ///
   /// See also: [WebView.debuggingEnabled].
   final bool debuggingEnabled;
+
+  final bool hasInterceptRequestDelegate;
 
   /// The value used for the HTTP `User-Agent:` request header.
   ///
@@ -355,7 +360,7 @@ abstract class WebViewPlatform {
     CreationParams creationParams,
     @required WebViewPlatformCallbacksHandler webViewPlatformCallbacksHandler,
     WebViewPlatformCreatedCallback onWebViewPlatformCreated,
-    Set<Factory<OneSequenceGestureRecognizer>> gestureRecognizers,
+    Set<Factory<OneSequenceGestureRecognizer>> gestureRecognizers
   });
 
   /// Clears all cookies for all [WebView] instances.

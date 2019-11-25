@@ -6,6 +6,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:webview_flutter/webview_flutter.dart';
 
 import '../platform_interface.dart';
 
@@ -24,7 +25,7 @@ class MethodChannelWebViewPlatform implements WebViewPlatformController {
   static const MethodChannel _cookieManagerChannel =
       MethodChannel('plugins.flutter.io/cookie_manager');
 
-  Future<bool> _onMethodCall(MethodCall call) async {
+  Future<dynamic> _onMethodCall(MethodCall call) async {
     switch (call.method) {
       case 'javascriptChannelMessage':
         final String channel = call.arguments['channel'];
@@ -41,9 +42,37 @@ class MethodChannelWebViewPlatform implements WebViewPlatformController {
         return null;
       case 'javascriptAlert':
         _platformCallbacksHandler.onShowAlert(call.arguments['message']);
+        return null;
+        break;
+      case 'interceptRequest':
+        return _interceptRequest(call);
     }
     throw MissingPluginException(
         '${call.method} was invoked but has no handler');
+  }
+
+  Future<Map<String, dynamic>> _interceptRequest(MethodCall call) {
+    final WebResourceRequest request = WebResourceRequest(
+        call.arguments['url'],
+        call.arguments['method'],
+        Map<String, String>.from(call.arguments['headers'])
+    );
+
+    return _platformCallbacksHandler.interceptRequest(request)
+        .then(_mapResponse);
+  }
+
+  Map<String, dynamic> _mapResponse(WebResourceResponse response) {
+    if (response == null) {
+      return null;
+    }
+
+    return <String, dynamic> {
+      'statusCode': response.statusCode,
+      'reasonPhrase': response.reasonPhrase,
+      'headers': response.headers,
+      'body': response.body
+    };
   }
 
   @override
@@ -160,6 +189,7 @@ class MethodChannelWebViewPlatform implements WebViewPlatformController {
 
     _addIfNonNull('jsMode', settings.javascriptMode?.index);
     _addIfNonNull('hasNavigationDelegate', settings.hasNavigationDelegate);
+    _addIfNonNull('hasInterceptRequestDelegate', settings.hasInterceptRequestDelegate);
     _addIfNonNull('debuggingEnabled', settings.debuggingEnabled);
     _addSettingIfPresent('userAgent', settings.userAgent);
     return map;

@@ -3,9 +3,9 @@
 // found in the LICENSE file.
 
 import 'dart:async';
-import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:webview_flutter/webview_flutter.dart';
+import 'package:http/http.dart' as http;
 
 void main() => runApp(MaterialApp(home: WebViewExample()));
 
@@ -24,6 +24,22 @@ The navigation delegate is set to block navigation to the youtube website.
 </html>
 ''';
 
+const String kInterceptRequestExamplePage = '''
+<!DOCTYPE html><html>
+<head><title>Intercept Request Example</title></head>
+<body>
+<p>
+Original image:
+</p>
+<img src="https://picsum.photos/id/1028/200/200/?original"/>
+<p>
+Intercepted image:
+</p>
+<img src="https://picsum.photos/id/1028/200/200/"/>
+</body>
+</html>
+''';
+
 class WebViewExample extends StatefulWidget {
   @override
   _WebViewExampleState createState() => _WebViewExampleState();
@@ -32,6 +48,8 @@ class WebViewExample extends StatefulWidget {
 class _WebViewExampleState extends State<WebViewExample> {
   final Completer<WebViewController> _controller =
       Completer<WebViewController>();
+
+  WebResourceResponse _cachedInterceptRequestResponse;
 
   @override
   Widget build(BuildContext context) {
@@ -69,6 +87,7 @@ class _WebViewExampleState extends State<WebViewExample> {
           onPageFinished: (String url) {
             print('Page finished loading: $url');
           },
+          interceptRequest: _interceptRequest,
         );
       }),
       floatingActionButton: favoriteButton(),
@@ -84,6 +103,32 @@ class _WebViewExampleState extends State<WebViewExample> {
           );
         });
   }
+
+  Future<WebResourceResponse> _interceptRequest(WebResourceRequest request) async {
+    if (request.url == "https://picsum.photos/id/1028/200/200/" && request.method == "GET") {
+      if (_cachedInterceptRequestResponse != null) {
+        return _cachedInterceptRequestResponse;
+      }
+
+      return http.get("https://picsum.photos/id/1035/200/200/", headers: request.headers)
+        .then(_mapHttpResponse)
+        .then((WebResourceResponse response) {
+          if (response.statusCode == 200) {
+            _cachedInterceptRequestResponse = response;
+          }
+          return response;
+        });
+    } else {
+      return null;
+    }
+  }
+
+  WebResourceResponse _mapHttpResponse(http.Response response) =>
+    WebResourceResponse(
+      response.statusCode,
+      response.reasonPhrase,
+      response.headers,
+      response.bodyBytes);
 
   Widget favoriteButton() {
     return FutureBuilder<WebViewController>(
@@ -114,7 +159,8 @@ enum MenuOptions {
   listCache,
   clearCache,
   navigationDelegate,
-  setCookie
+  setCookie,
+  interceptRequest
 }
 
 class SampleMenu extends StatelessWidget {
@@ -156,6 +202,9 @@ class SampleMenu extends StatelessWidget {
               case MenuOptions.navigationDelegate:
                 _onNavigationDelegateExample(controller.data, context);
                 break;
+              case MenuOptions.interceptRequest:
+                _onInterceptRequestExample(controller.data, context);
+                break;
             }
           },
           itemBuilder: (BuildContext context) => <PopupMenuItem<MenuOptions>>[
@@ -191,6 +240,10 @@ class SampleMenu extends StatelessWidget {
             const PopupMenuItem<MenuOptions>(
               value: MenuOptions.setCookie,
               child: Text('Set cookie'),
+            ),
+            const PopupMenuItem<MenuOptions>(
+              value: MenuOptions.interceptRequest,
+              child: Text('Intercept Request example'),
             ),
           ],
         );
@@ -305,6 +358,16 @@ class SampleMenu extends StatelessWidget {
       WebViewController controller, BuildContext context) async {
     controller.loadData(
         html: kNavigationExamplePage,
+        baseUrl: "https://test.com",
+        mimeType: "text/html",
+        encoding: "utf-8"
+    );
+  }
+
+  void _onInterceptRequestExample(
+      WebViewController controller, BuildContext context) async {
+    controller.loadData(
+        html: kInterceptRequestExamplePage,
         baseUrl: "https://test.com",
         mimeType: "text/html",
         encoding: "utf-8"

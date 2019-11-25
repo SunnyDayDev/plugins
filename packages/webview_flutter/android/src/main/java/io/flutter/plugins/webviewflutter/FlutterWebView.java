@@ -281,18 +281,19 @@ public class FlutterWebView implements PlatformView, MethodCallHandler {
   }
 
   private void applySettings(Map<String, Object> settings) {
+    boolean hasNavigationDelegate = false;
+    boolean hasInterceptRequestDelegate = false;
+    
     for (String key : settings.keySet()) {
       switch (key) {
         case "jsMode":
           updateJsMode((Integer) settings.get(key));
           break;
         case "hasNavigationDelegate":
-          final boolean hasNavigationDelegate = (boolean) settings.get(key);
-
-          final WebViewClient webViewClient =
-              flutterWebViewClient.createWebViewClient(hasNavigationDelegate);
-
-          webView.setWebViewClient(webViewClient);
+          hasNavigationDelegate = (boolean) settings.get(key);
+          break;
+        case "hasInterceptRequestDelegate":
+          hasInterceptRequestDelegate = (boolean) settings.get(key);
           break;
         case "debuggingEnabled":
           final boolean debuggingEnabled = (boolean) settings.get(key);
@@ -305,6 +306,13 @@ public class FlutterWebView implements PlatformView, MethodCallHandler {
         default:
           throw new IllegalArgumentException("Unknown WebView setting: " + key);
       }
+    }
+    
+    if (hasNavigationDelegate || hasInterceptRequestDelegate) {
+      final WebViewClient webViewClient =
+          flutterWebViewClient.createWebViewClient(hasNavigationDelegate, hasInterceptRequestDelegate);
+  
+      webView.setWebViewClient(webViewClient);
     }
   }
 
