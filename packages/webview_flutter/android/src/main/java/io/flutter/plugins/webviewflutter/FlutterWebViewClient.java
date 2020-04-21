@@ -140,12 +140,6 @@ class FlutterWebViewClient {
     args.put("method", request.getMethod());
     args.put("headers", request.getRequestHeaders());
 
-  private void onPageStarted(WebView view, String url) {
-    Map<String, Object> args = new HashMap<>();
-    args.put("url", url);
-    methodChannel.invokeMethod("onPageStarted", args);
-  }
-
     final AtomicReference<WebResourceResponse> responseReference = new AtomicReference<>(null);
     final Semaphore sema = new Semaphore(0);
     
@@ -224,6 +218,12 @@ class FlutterWebViewClient {
         mimeType, encoding, statusCode, reasonPhrase, headers,
         new ByteArrayInputStream(body)
     );
+  }
+
+  private void onPageStarted(WebView view, String url) {
+    Map<String, Object> args = new HashMap<>();
+    args.put("url", url);
+    methodChannel.invokeMethod("onPageStarted", args);
   }
 
   private void onPageFinished(WebView view, String url) {

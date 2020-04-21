@@ -362,7 +362,7 @@ class SampleMenu extends StatelessWidget {
 
   void _onNavigationDelegateExample(
       WebViewController controller, BuildContext context) async {
-    controller.loadData(
+    await controller.loadData(
         html: kNavigationExamplePage,
         baseUrl: "https://test.com",
         mimeType: "text/html",
@@ -372,7 +372,7 @@ class SampleMenu extends StatelessWidget {
 
   void _onInterceptRequestExample(
       WebViewController controller, BuildContext context) async {
-    controller.loadData(
+    await controller.loadData(
         html: kInterceptRequestExamplePage,
         baseUrl: "https://test.com",
         mimeType: "text/html",
