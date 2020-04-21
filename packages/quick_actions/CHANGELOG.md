@@ -1,6 +1,35 @@
+## 0.4.0+4
+
+* Bump the minimum Flutter version to 1.12.13+hotfix.5.
+* Clean up various Android workarounds no longer needed after framework v1.12.
+* Complete v2 embedding support.
+
+## 0.4.0+3
+
+* Replace deprecated `getFlutterEngine` call on Android.
+
+## 0.4.0+2
+
+* Make the pedantic dev_dependency explicit.
+
+## 0.4.0+1
+
+* Remove the deprecated `author:` field from pubspec.yaml
+* Migrate the plugin to the pubspec platforms manifest.
+* Require Flutter SDK 1.10.0 or greater.
+
+## 0.4.0
+
+- Added missing documentation.
+- **Breaking change**. `channel` and `withMethodChannel` are now
+  `@visibleForTesting`. These methods are for plugin unit tests only and may be
+  removed in the future.
+- **Breaking change**. Removed `runLaunchAction` from public API. This method
+  was not meant to be used by consumers of the plugin.
+
 ## 0.3.3+1
 
-* Update and migrate iOS example project by removing flutter_assets, change 
+* Update and migrate iOS example project by removing flutter_assets, change
   "English" to "en", remove extraneous xcconfigs, update to Xcode 11 build
   settings, and remove ARCHS and DEVELOPMENT_TEAM.
 

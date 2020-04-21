@@ -5,77 +5,22 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/material.dart';
 import 'package:meta/meta.dart';
 
-final MethodChannel _channel = const MethodChannel('flutter.io/videoPlayer')
+import 'package:video_player_platform_interface/video_player_platform_interface.dart';
+export 'package:video_player_platform_interface/video_player_platform_interface.dart'
+    show DurationRange, DataSourceType, VideoFormat;
+
+import 'src/closed_caption_file.dart';
+export 'src/closed_caption_file.dart';
+
+final VideoPlayerPlatform _videoPlayerPlatform = VideoPlayerPlatform.instance
   // This will clear all open videos on the platform when a full restart is
   // performed.
-  ..invokeMethod<void>('init');
-
-/// Describes a discrete segment of time within a video using a [start] and
-/// [end] [Duration].
-class DurationRange {
-  /// Trusts that the given [start] and [end] are actually in order. They should
-  /// both be non-null.
-  DurationRange(this.start, this.end);
-
-  /// The beginning of the segment described relative to the beginning of the
-  /// entire video. Should be shorter than or equal to [end].
-  ///
-  /// For example, if the entire video is 4 minutes long and the range is from
-  /// 1:00-2:00, this should be a `Duration` of one minute.
-  final Duration start;
-
-  /// The end of the segment described as a duration relative to the beginning of
-  /// the entire video. This is expected to be non-null and longer than or equal
-  /// to [start].
-  ///
-  /// For example, if the entire video is 4 minutes long and the range is from
-  /// 1:00-2:00, this should be a `Duration` of two minutes.
-  final Duration end;
-
-  /// Assumes that [duration] is the total length of the video that this
-  /// DurationRange is a segment form. It returns the percentage that [start] is
-  /// through the entire video.
-  ///
-  /// For example, assume that the entire video is 4 minutes long. If [start] has
-  /// a duration of one minute, this will return `0.25` since the DurationRange
-  /// starts 25% of the way through the video's total length.
-  double startFraction(Duration duration) {
-    return start.inMilliseconds / duration.inMilliseconds;
-  }
-
-  /// Assumes that [duration] is the total length of the video that this
-  /// DurationRange is a segment form. It returns the percentage that [start] is
-  /// through the entire video.
-  ///
-  /// For example, assume that the entire video is 4 minutes long. If [end] has a
-  /// duration of two minutes, this will return `0.5` since the DurationRange
-  /// ends 50% of the way through the video's total length.
-  double endFraction(Duration duration) {
-    return end.inMilliseconds / duration.inMilliseconds;
-  }
-
-  @override
-  String toString() => '$runtimeType(start: $start, end: $end)';
-}
-
-/// The file format of the given video.
-enum VideoFormat {
-  /// Dynamic Adaptive Streaming over HTTP, also known as MPEG-DASH.
-  dash,
-
-  /// HTTP Live Streaming.
-  hls,
-
-  /// Smooth Streaming.
-  ss,
-
-  /// Any format other than the other ones defined in this enum.
-  other
-}
+  ..init();
 
 /// The duration, current position, buffering state, error state and settings
 /// of a [VideoPlayerController].
@@ -86,6 +31,7 @@ class VideoPlayerValue {
     @required this.duration,
     this.size,
     this.position = const Duration(),
+    this.caption = const Caption(),
     this.buffered = const <DurationRange>[],
     this.isPlaying = false,
     this.isLooping = false,
@@ -109,6 +55,12 @@ class VideoPlayerValue {
 
   /// The current playback position.
   final Duration position;
+
+  /// The [Caption] that should be displayed based on the current [position].
+  ///
+  /// This field will never be null. If there is no caption for the current
+  /// [position], this will be an empty [Caption] object.
+  final Caption caption;
 
   /// The currently buffered ranges.
   final List<DurationRange> buffered;
@@ -143,8 +95,17 @@ class VideoPlayerValue {
   bool get hasError => errorDescription != null;
 
   /// Returns [size.width] / [size.height] when size is non-null, or `1.0.` when
-  /// it is.
-  double get aspectRatio => size != null ? size.width / size.height : 1.0;
+  /// size is null or the aspect ratio would be less than or equal to 0.0.
+  double get aspectRatio {
+    if (size == null) {
+      return 1.0;
+    }
+    final double aspectRatio = size.width / size.height;
+    if (aspectRatio <= 0) {
+      return 1.0;
+    }
+    return aspectRatio;
+  }
 
   /// Returns a new instance that has the same values as this current instance,
   /// except for any overrides passed in as arguments to [copyWidth].
@@ -152,6 +113,7 @@ class VideoPlayerValue {
     Duration duration,
     Size size,
     Duration position,
+    Caption caption,
     List<DurationRange> buffered,
     bool isPlaying,
     bool isLooping,
@@ -163,6 +125,7 @@ class VideoPlayerValue {
       duration: duration ?? this.duration,
       size: size ?? this.size,
       position: position ?? this.position,
+      caption: caption ?? this.caption,
       buffered: buffered ?? this.buffered,
       isPlaying: isPlaying ?? this.isPlaying,
       isLooping: isLooping ?? this.isLooping,
@@ -178,6 +141,7 @@ class VideoPlayerValue {
         'duration: $duration, '
         'size: $size, '
         'position: $position, '
+        'caption: $caption, '
         'buffered: [${buffered.join(', ')}], '
         'isPlaying: $isPlaying, '
         'isLooping: $isLooping, '
@@ -185,20 +149,6 @@ class VideoPlayerValue {
         'volume: $volume, '
         'errorDescription: $errorDescription)';
   }
-}
-
-/// The way in which the video was originally loaded. This has nothing to do
-/// with the video's file type. It's just the place from which the video is
-/// fetched from.
-enum DataSourceType {
-  /// The video was included in the app's asset files.
-  asset,
-
-  /// The video was downloaded from the internet.
-  network,
-
-  /// The video was loaded off of the local filesystem.
-  file
 }
 
 /// Controls a platform video player, and provides updates when the state is
@@ -217,7 +167,8 @@ class VideoPlayerController extends ValueNotifier<VideoPlayerValue> {
   /// The name of the asset is given by the [dataSource] argument and must not be
   /// null. The [package] argument must be non-null when the asset comes from a
   /// package and null otherwise.
-  VideoPlayerController.asset(this.dataSource, {this.package})
+  VideoPlayerController.asset(this.dataSource,
+      {this.package, this.closedCaptionFile})
       : dataSourceType = DataSourceType.asset,
         formatHint = null,
         super(VideoPlayerValue(duration: null));
@@ -229,7 +180,8 @@ class VideoPlayerController extends ValueNotifier<VideoPlayerValue> {
   /// null.
   /// **Android only**: The [formatHint] option allows the caller to override
   /// the video format detection code.
-  VideoPlayerController.network(this.dataSource, {this.formatHint})
+  VideoPlayerController.network(this.dataSource,
+      {this.formatHint, this.closedCaptionFile})
       : dataSourceType = DataSourceType.network,
         package = null,
         super(VideoPlayerValue(duration: null));
@@ -238,7 +190,7 @@ class VideoPlayerController extends ValueNotifier<VideoPlayerValue> {
   ///
   /// This will load the file from the file-URI given by:
   /// `'file://${file.path}'`.
-  VideoPlayerController.file(File file)
+  VideoPlayerController.file(File file, {this.closedCaptionFile})
       : dataSource = 'file://${file.path}',
         dataSourceType = DataSourceType.file,
         package = null,
@@ -261,6 +213,15 @@ class VideoPlayerController extends ValueNotifier<VideoPlayerValue> {
 
   /// Only set for [asset] videos. The package that the asset was loaded from.
   final String package;
+
+  /// Optional field to specify a file containing the closed
+  /// captioning.
+  ///
+  /// This future will be awaited and the file will be loaded when
+  /// [initialize()] is called.
+  final Future<ClosedCaptionFile> closedCaptionFile;
+
+  ClosedCaptionFile _closedCaptionFile;
   Timer _timer;
   bool _isDisposed = false;
   Completer<void> _creatingCompleter;
@@ -277,92 +238,88 @@ class VideoPlayerController extends ValueNotifier<VideoPlayerValue> {
     _lifeCycleObserver = _VideoAppLifeCycleObserver(this);
     _lifeCycleObserver.initialize();
     _creatingCompleter = Completer<void>();
-    Map<dynamic, dynamic> dataSourceDescription;
+
+    DataSource dataSourceDescription;
     switch (dataSourceType) {
       case DataSourceType.asset:
-        dataSourceDescription = <String, dynamic>{
-          'asset': dataSource,
-          'package': package
-        };
+        dataSourceDescription = DataSource(
+          sourceType: DataSourceType.asset,
+          asset: dataSource,
+          package: package,
+        );
         break;
       case DataSourceType.network:
-        dataSourceDescription = <String, dynamic>{
-          'uri': dataSource,
-          'formatHint': _videoFormatStringMap[formatHint]
-        };
+        dataSourceDescription = DataSource(
+          sourceType: DataSourceType.network,
+          uri: dataSource,
+          formatHint: formatHint,
+        );
         break;
       case DataSourceType.file:
-        dataSourceDescription = <String, dynamic>{'uri': dataSource};
+        dataSourceDescription = DataSource(
+          sourceType: DataSourceType.file,
+          uri: dataSource,
+        );
         break;
     }
-    final Map<String, dynamic> response =
-        await _channel.invokeMapMethod<String, dynamic>(
-      'create',
-      dataSourceDescription,
-    );
-    _textureId = response['textureId'];
+    _textureId = await _videoPlayerPlatform.create(dataSourceDescription);
     _creatingCompleter.complete(null);
     final Completer<void> initializingCompleter = Completer<void>();
 
-    DurationRange toDurationRange(dynamic value) {
-      final List<dynamic> pair = value;
-      return DurationRange(
-        Duration(milliseconds: pair[0]),
-        Duration(milliseconds: pair[1]),
-      );
-    }
-
-    void eventListener(dynamic event) {
+    void eventListener(VideoEvent event) {
       if (_isDisposed) {
         return;
       }
 
-      final Map<dynamic, dynamic> map = event;
-      switch (map['event']) {
-        case 'initialized':
+      switch (event.eventType) {
+        case VideoEventType.initialized:
           value = value.copyWith(
-            duration: Duration(milliseconds: map['duration']),
-            size: Size(map['width']?.toDouble() ?? 0.0,
-                map['height']?.toDouble() ?? 0.0),
+            duration: event.duration,
+            size: event.size,
           );
           initializingCompleter.complete(null);
           _applyLooping();
           _applyVolume();
           _applyPlayPause();
           break;
-        case 'completed':
+        case VideoEventType.completed:
           value = value.copyWith(isPlaying: false, position: value.duration);
           _timer?.cancel();
           break;
-        case 'bufferingUpdate':
-          final List<dynamic> values = map['values'];
-          value = value.copyWith(
-            buffered: values.map<DurationRange>(toDurationRange).toList(),
-          );
+        case VideoEventType.bufferingUpdate:
+          value = value.copyWith(buffered: event.buffered);
           break;
-        case 'bufferingStart':
+        case VideoEventType.bufferingStart:
           value = value.copyWith(isBuffering: true);
           break;
-        case 'bufferingEnd':
+        case VideoEventType.bufferingEnd:
           value = value.copyWith(isBuffering: false);
           break;
+        case VideoEventType.unknown:
+          break;
       }
+    }
+
+    if (closedCaptionFile != null) {
+      if (_closedCaptionFile == null) {
+        _closedCaptionFile = await closedCaptionFile;
+      }
+      value = value.copyWith(caption: _getCaptionAt(value.position));
     }
 
     void errorListener(Object obj) {
       final PlatformException e = obj;
       value = VideoPlayerValue.erroneous(e.message);
       _timer?.cancel();
+      if (!initializingCompleter.isCompleted) {
+        initializingCompleter.completeError(obj);
+      }
     }
 
-    _eventSubscription = _eventChannelFor(_textureId)
-        .receiveBroadcastStream()
+    _eventSubscription = _videoPlayerPlatform
+        .videoEventsFor(_textureId)
         .listen(eventListener, onError: errorListener);
     return initializingCompleter.future;
-  }
-
-  EventChannel _eventChannelFor(int textureId) {
-    return EventChannel('flutter.io/videoPlayer/videoEvents$textureId');
   }
 
   @override
@@ -373,10 +330,7 @@ class VideoPlayerController extends ValueNotifier<VideoPlayerValue> {
         _isDisposed = true;
         _timer?.cancel();
         await _eventSubscription?.cancel();
-        await _channel.invokeMethod<void>(
-          'dispose',
-          <String, dynamic>{'textureId': _textureId},
-        );
+        await _videoPlayerPlatform.dispose(_textureId);
       }
       _lifeCycleObserver.dispose();
     }
@@ -411,10 +365,7 @@ class VideoPlayerController extends ValueNotifier<VideoPlayerValue> {
     if (!value.initialized || _isDisposed) {
       return;
     }
-    _channel.invokeMethod<void>(
-      'setLooping',
-      <String, dynamic>{'textureId': _textureId, 'looping': value.isLooping},
-    );
+    await _videoPlayerPlatform.setLooping(_textureId, value.isLooping);
   }
 
   Future<void> _applyPlayPause() async {
@@ -422,10 +373,7 @@ class VideoPlayerController extends ValueNotifier<VideoPlayerValue> {
       return;
     }
     if (value.isPlaying) {
-      await _channel.invokeMethod<void>(
-        'play',
-        <String, dynamic>{'textureId': _textureId},
-      );
+      await _videoPlayerPlatform.play(_textureId);
       _timer = Timer.periodic(
         const Duration(milliseconds: 500),
         (Timer timer) async {
@@ -436,15 +384,12 @@ class VideoPlayerController extends ValueNotifier<VideoPlayerValue> {
           if (_isDisposed) {
             return;
           }
-          value = value.copyWith(position: newPosition);
+          _updatePosition(newPosition);
         },
       );
     } else {
       _timer?.cancel();
-      await _channel.invokeMethod<void>(
-        'pause',
-        <String, dynamic>{'textureId': _textureId},
-      );
+      await _videoPlayerPlatform.pause(_textureId);
     }
   }
 
@@ -452,10 +397,7 @@ class VideoPlayerController extends ValueNotifier<VideoPlayerValue> {
     if (!value.initialized || _isDisposed) {
       return;
     }
-    await _channel.invokeMethod<void>(
-      'setVolume',
-      <String, dynamic>{'textureId': _textureId, 'volume': value.volume},
-    );
+    await _videoPlayerPlatform.setVolume(_textureId, value.volume);
   }
 
   /// The position in the current video.
@@ -463,12 +405,7 @@ class VideoPlayerController extends ValueNotifier<VideoPlayerValue> {
     if (_isDisposed) {
       return null;
     }
-    return Duration(
-      milliseconds: await _channel.invokeMethod<int>(
-        'position',
-        <String, dynamic>{'textureId': _textureId},
-      ),
-    );
+    return await _videoPlayerPlatform.getPosition(_textureId);
   }
 
   /// Sets the video's current timestamp to be at [moment]. The next
@@ -476,20 +413,17 @@ class VideoPlayerController extends ValueNotifier<VideoPlayerValue> {
   ///
   /// If [moment] is outside of the video's full range it will be automatically
   /// and silently clamped.
-  Future<void> seekTo(Duration moment) async {
+  Future<void> seekTo(Duration position) async {
     if (_isDisposed) {
       return;
     }
-    if (moment > value.duration) {
-      moment = value.duration;
-    } else if (moment < const Duration()) {
-      moment = const Duration();
+    if (position > value.duration) {
+      position = value.duration;
+    } else if (position < const Duration()) {
+      position = const Duration();
     }
-    await _channel.invokeMethod<void>('seekTo', <String, dynamic>{
-      'textureId': _textureId,
-      'location': moment.inMilliseconds,
-    });
-    value = value.copyWith(position: moment);
+    await _videoPlayerPlatform.seekTo(_textureId, position);
+    _updatePosition(position);
   }
 
   /// Sets the audio volume of [this].
@@ -501,13 +435,32 @@ class VideoPlayerController extends ValueNotifier<VideoPlayerValue> {
     await _applyVolume();
   }
 
-  static const Map<VideoFormat, String> _videoFormatStringMap =
-      <VideoFormat, String>{
-    VideoFormat.ss: 'ss',
-    VideoFormat.hls: 'hls',
-    VideoFormat.dash: 'dash',
-    VideoFormat.other: 'other',
-  };
+  /// The closed caption based on the current [position] in the video.
+  ///
+  /// If there are no closed captions at the current [position], this will
+  /// return an empty [Caption].
+  ///
+  /// If no [closedCaptionFile] was specified, this will always return an empty
+  /// [Caption].
+  Caption _getCaptionAt(Duration position) {
+    if (_closedCaptionFile == null) {
+      return Caption();
+    }
+
+    // TODO: This would be more efficient as a binary search.
+    for (final caption in _closedCaptionFile.captions) {
+      if (caption.start <= position && caption.end >= position) {
+        return caption;
+      }
+    }
+
+    return Caption();
+  }
+
+  void _updatePosition(Duration position) {
+    value = value.copyWith(position: position);
+    value = value.copyWith(caption: _getCaptionAt(position));
+  }
 }
 
 class _VideoAppLifeCycleObserver extends Object with WidgetsBindingObserver {
@@ -594,7 +547,9 @@ class _VideoPlayerState extends State<VideoPlayer> {
 
   @override
   Widget build(BuildContext context) {
-    return _textureId == null ? Container() : Texture(textureId: _textureId);
+    return _textureId == null
+        ? Container()
+        : _videoPlayerPlatform.buildView(_textureId);
   }
 }
 
@@ -822,5 +777,71 @@ class _VideoProgressIndicatorState extends State<VideoProgressIndicator> {
     } else {
       return paddedProgressIndicator;
     }
+  }
+}
+
+/// Widget for displaying closed captions on top of a video.
+///
+/// If [text] is null, this widget will not display anything.
+///
+/// If [textStyle] is supplied, it will be used to style the text in the closed
+/// caption.
+///
+/// Note: in order to have closed captions, you need to specify a
+/// [VideoPlayerController.closedCaptionFile].
+///
+/// Usage:
+///
+/// ```dart
+/// Stack(children: <Widget>[
+///   VideoPlayer(_controller),
+///   ClosedCaption(text: _controller.value.caption.text),
+/// ]),
+/// ```
+class ClosedCaption extends StatelessWidget {
+  /// Creates a a new closed caption, designed to be used with
+  /// [VideoPlayerValue.caption].
+  ///
+  /// If [text] is null, nothing will be displayed.
+  const ClosedCaption({Key key, this.text, this.textStyle}) : super(key: key);
+
+  /// The text that will be shown in the closed caption, or null if no caption
+  /// should be shown.
+  final String text;
+
+  /// Specifies how the text in the closed caption should look.
+  ///
+  /// If null, defaults to [DefaultTextStyle.of(context).style] with size 36
+  /// font colored white.
+  final TextStyle textStyle;
+
+  @override
+  Widget build(BuildContext context) {
+    final TextStyle effectiveTextStyle = textStyle ??
+        DefaultTextStyle.of(context).style.copyWith(
+              fontSize: 36.0,
+              color: Colors.white,
+            );
+
+    if (text == null) {
+      return SizedBox.shrink();
+    }
+
+    return Align(
+      alignment: Alignment.bottomCenter,
+      child: Padding(
+        padding: EdgeInsets.only(bottom: 24.0),
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            color: Color(0xB8000000),
+            borderRadius: BorderRadius.circular(2.0),
+          ),
+          child: Padding(
+            padding: EdgeInsets.symmetric(horizontal: 2.0),
+            child: Text(text, style: effectiveTextStyle),
+          ),
+        ),
+      ),
+    );
   }
 }

@@ -12,6 +12,8 @@ import '../platform_interface.dart';
 
 /// A [WebViewPlatformController] that uses a method channel to control the webview.
 class MethodChannelWebViewPlatform implements WebViewPlatformController {
+  /// Constructs an instance that will listen for webviews broadcasting to the
+  /// given [id], using the given [WebViewPlatformCallbacksHandler].
   MethodChannelWebViewPlatform(int id, this._platformCallbacksHandler)
       : assert(_platformCallbacksHandler != null),
         _channel = MethodChannel('plugins.flutter.io/webview_$id') {
@@ -40,6 +42,26 @@ class MethodChannelWebViewPlatform implements WebViewPlatformController {
       case 'onPageFinished':
         _platformCallbacksHandler.onPageFinished(call.arguments['url']);
         return null;
+      case 'onPageStarted':
+        _platformCallbacksHandler.onPageStarted(call.arguments['url']);
+        return null;
+      case 'onWebResourceError':
+        _platformCallbacksHandler.onWebResourceError(
+          WebResourceError(
+            errorCode: call.arguments['errorCode'],
+            description: call.arguments['description'],
+            domain: call.arguments['domain'],
+            errorType: call.arguments['errorType'] == null
+                ? null
+                : WebResourceErrorType.values.firstWhere(
+                    (WebResourceErrorType type) {
+                      return type.toString() ==
+                          '$WebResourceErrorType.${call.arguments['errorType']}';
+                    },
+                  ),
+          ),
+        );
+        return null;
       case 'javascriptAlert':
         _platformCallbacksHandler.onShowAlert(call.arguments['message']);
         return null;
@@ -47,8 +69,10 @@ class MethodChannelWebViewPlatform implements WebViewPlatformController {
       case 'interceptRequest':
         return _interceptRequest(call);
     }
+
     throw MissingPluginException(
-        '${call.method} was invoked but has no handler');
+      '${call.method} was invoked but has no handler',
+    );
   }
 
   Future<Map<String, dynamic>> _interceptRequest(MethodCall call) {
@@ -191,6 +215,8 @@ class MethodChannelWebViewPlatform implements WebViewPlatformController {
     _addIfNonNull('hasNavigationDelegate', settings.hasNavigationDelegate);
     _addIfNonNull('hasInterceptRequestDelegate', settings.hasInterceptRequestDelegate);
     _addIfNonNull('debuggingEnabled', settings.debuggingEnabled);
+    _addIfNonNull(
+        'gestureNavigationEnabled', settings.gestureNavigationEnabled);
     _addSettingIfPresent('userAgent', settings.userAgent);
     return map;
   }
