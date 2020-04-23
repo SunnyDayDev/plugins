@@ -469,7 +469,7 @@ WebSettings _clearUnchangedWebSettings(
     userAgent = newValue.userAgent;
   }
   if (currentValue.hasInterceptRequestDelegate != newValue.hasInterceptRequestDelegate) {
-    hasInterceptRequestDelegate = newValue.hasNavigationDelegate;
+    hasInterceptRequestDelegate = newValue.hasInterceptRequestDelegate;
   }
 
   return WebSettings(

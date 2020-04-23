@@ -310,13 +310,11 @@ public class FlutterWebView implements PlatformView, MethodCallHandler {
           throw new IllegalArgumentException("Unknown WebView setting: " + key);
       }
     }
-    
-    if (hasNavigationDelegate || hasInterceptRequestDelegate) {
-      final WebViewClient webViewClient =
-          flutterWebViewClient.createWebViewClient(hasNavigationDelegate, hasInterceptRequestDelegate);
-  
-      webView.setWebViewClient(webViewClient);
-    }
+
+    final WebViewClient webViewClient =
+            flutterWebViewClient.createWebViewClient(hasNavigationDelegate, hasInterceptRequestDelegate);
+
+    webView.setWebViewClient(webViewClient);
   }
 
   private void updateJsMode(int mode) {
