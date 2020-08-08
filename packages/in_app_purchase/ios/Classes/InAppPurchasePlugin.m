@@ -83,6 +83,8 @@
 - (void)handleMethodCall:(FlutterMethodCall *)call result:(FlutterResult)result {
   if ([@"-[SKPaymentQueue canMakePayments:]" isEqualToString:call.method]) {
     [self canMakePayments:result];
+  } else if ([@"-[SKPaymentQueue transactions]" isEqualToString:call.method]) {
+    [self getPendingTransactions:result];
   } else if ([@"-[InAppPurchasePlugin startProductRequest:result:]" isEqualToString:call.method]) {
     [self handleProductRequestMethodCall:call result:result];
   } else if ([@"-[InAppPurchasePlugin addPayment:result:]" isEqualToString:call.method]) {
@@ -102,6 +104,16 @@
 
 - (void)canMakePayments:(FlutterResult)result {
   result([NSNumber numberWithBool:[SKPaymentQueue canMakePayments]]);
+}
+
+- (void)getPendingTransactions:(FlutterResult)result {
+  NSArray<SKPaymentTransaction *> *transactions =
+      [self.paymentQueueHandler getUnfinishedTransactions];
+  NSMutableArray *transactionMaps = [[NSMutableArray alloc] init];
+  for (SKPaymentTransaction *transaction in transactions) {
+    [transactionMaps addObject:[FIAObjectTranslator getMapFromSKPaymentTransaction:transaction]];
+  }
+  result(transactionMaps);
 }
 
 - (void)handleProductRequestMethodCall:(FlutterMethodCall *)call result:(FlutterResult)result {
@@ -175,7 +187,7 @@
     result([FlutterError
         errorWithCode:@"storekit_duplicate_product_object"
               message:@"There is a pending transaction for the same product identifier. Please "
-                      @"either wait for it to be finished or finish it manuelly using "
+                      @"either wait for it to be finished or finish it manually using "
                       @"`completePurchase` to avoid edge cases."
 
               details:call.arguments]);
