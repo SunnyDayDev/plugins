@@ -2,6 +2,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#import <OCMock/OCMock.h>
 #import <XCTest/XCTest.h>
 #import "FIAPaymentQueueHandler.h"
 #import "Stubs.h"
@@ -120,6 +121,7 @@
                                           @"simulatesAskToBuyInSandBox" : @YES,
                                         }];
   SKPaymentQueueStub* queue = [SKPaymentQueueStub new];
+  queue.testState = SKPaymentTransactionStatePurchased;
   self.plugin.paymentQueueHandler = [[FIAPaymentQueueHandler alloc] initWithQueue:queue
       transactionsUpdated:^(NSArray<SKPaymentTransaction*>* _Nonnull transactions) {
       }
@@ -144,7 +146,7 @@
                     XCTAssertEqualObjects(
                         error.message,
                         @"There is a pending transaction for the same product identifier. Please "
-                        @"either wait for it to be finished or finish it manuelly using "
+                        @"either wait for it to be finished or finish it manually using "
                         @"`completePurchase` to avoid edge cases.");
                     [expectation fulfill];
                   }];
@@ -246,6 +248,41 @@
                          }];
   [self waitForExpectations:@[ expectation ] timeout:5];
   XCTAssertTrue(result);
+}
+
+- (void)testGetPendingTransactions {
+  XCTestExpectation* expectation = [self expectationWithDescription:@"expect success"];
+  FlutterMethodCall* call =
+      [FlutterMethodCall methodCallWithMethodName:@"-[SKPaymentQueue transactions]" arguments:nil];
+  SKPaymentQueue* mockQueue = OCMClassMock(SKPaymentQueue.class);
+  NSDictionary* transactionMap = @{
+    @"transactionIdentifier" : [NSNull null],
+    @"transactionState" : @(SKPaymentTransactionStatePurchasing),
+    @"payment" : [NSNull null],
+    @"error" : [FIAObjectTranslator getMapFromNSError:[NSError errorWithDomain:@"test_stub"
+                                                                          code:123
+                                                                      userInfo:@{}]],
+    @"transactionTimeStamp" : @([NSDate date].timeIntervalSince1970),
+    @"originalTransaction" : [NSNull null],
+  };
+  OCMStub(mockQueue.transactions).andReturn(@[ [[SKPaymentTransactionStub alloc]
+      initWithMap:transactionMap] ]);
+
+  __block NSArray* resultArray;
+  self.plugin.paymentQueueHandler = [[FIAPaymentQueueHandler alloc] initWithQueue:mockQueue
+                                                              transactionsUpdated:nil
+                                                               transactionRemoved:nil
+                                                         restoreTransactionFailed:nil
+                                             restoreCompletedTransactionsFinished:nil
+                                                            shouldAddStorePayment:nil
+                                                                 updatedDownloads:nil];
+  [self.plugin handleMethodCall:call
+                         result:^(id r) {
+                           resultArray = r;
+                           [expectation fulfill];
+                         }];
+  [self waitForExpectations:@[ expectation ] timeout:5];
+  XCTAssertEqualObjects(resultArray, @[ transactionMap ]);
 }
 
 @end
