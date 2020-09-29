@@ -12,7 +12,6 @@ import io.flutter.embedding.engine.plugins.FlutterPlugin;
 import io.flutter.embedding.engine.plugins.activity.ActivityAware;
 import io.flutter.embedding.engine.plugins.activity.ActivityPluginBinding;
 import io.flutter.plugin.common.BinaryMessenger;
-import io.flutter.plugin.common.PluginRegistry.Registrar;
 
 /**
  * Java platform implementation of the webview_flutter plugin.
@@ -56,6 +55,7 @@ public class WebViewFlutterPlugin implements FlutterPlugin, ActivityAware {
    * won't react to changes in activity or context, unlike {@link CameraPlugin}.
    */
   @SuppressWarnings("JavadocReference")
+  @SuppressWarnings("deprecation")
   public static void registerWith(final Registrar registrar) {
     ActivityWrapper activityWrapper = new ActivityWrapper(new ActivityWrapper.ActivityProvider() {
       @Override
