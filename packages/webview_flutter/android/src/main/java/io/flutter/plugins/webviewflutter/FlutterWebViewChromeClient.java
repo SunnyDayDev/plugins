@@ -33,7 +33,6 @@ class FlutterWebViewChromeClient extends WebChromeClient implements PluginRegist
 
     @Override
     public boolean onJsAlert(WebView view, String url, String message, final JsResult result) {
-
         HashMap<String, String> arguments = new HashMap<>();
         arguments.put("message", message);
         methodChannel.invokeMethod("javascriptAlert", arguments);
@@ -43,10 +42,11 @@ class FlutterWebViewChromeClient extends WebChromeClient implements PluginRegist
 
     @RequiresApi(api = Build.VERSION_CODES.LOLLIPOP)
     @Override
-    public boolean onShowFileChooser(WebView webView,
-                                     final ValueCallback<Uri[]> filePathCallback,
-                                     final FileChooserParams fileChooserParams) {
-
+    public boolean onShowFileChooser(
+        WebView webView,
+        final ValueCallback<Uri[]> filePathCallback,
+        final FileChooserParams fileChooserParams
+    ) {
         cancelCurrentRequest();
 
         Activity activity = activityWrapper.activity();
@@ -56,7 +56,7 @@ class FlutterWebViewChromeClient extends WebChromeClient implements PluginRegist
         activeRequest = new FileChooserResultListener() {
             @Override
             public void accept(int resultCode, @NonNull Intent data) {
-                filePathCallback.onReceiveValue(WebChromeClient.FileChooserParams.parseResult(resultCode, data));
+                filePathCallback.onReceiveValue(FileChooserParams.parseResult(resultCode, data));
             }
 
             @Override
@@ -78,8 +78,7 @@ class FlutterWebViewChromeClient extends WebChromeClient implements PluginRegist
 
     @Override
     public boolean onActivityResult(int requestCode, int resultCode, Intent intent) {
-
-        FileChooserResultListener resultListener = this.activeRequest;
+        FileChooserResultListener resultListener = activeRequest;
 
         if (resultListener == null)
             return false;
@@ -88,16 +87,13 @@ class FlutterWebViewChromeClient extends WebChromeClient implements PluginRegist
         activeRequest = null;
 
         return true;
-
     }
 
     private void cancelCurrentRequest() {
-
         if (activeRequest != null) {
             activeRequest.cancel();
             activeRequest = null;
         }
-
     }
 
     private interface FileChooserResultListener {
